@@ -62,25 +62,27 @@ def download_video():
         # اگر کوکی‌ها ارائه شده‌اند، به yt-dlp بدهیم (برای دور زدن 429/anti-bot)
         cookie_path = prepare_cookiefile()
 
-        # اگر کوکی داریم، از کلاینت وب استفاده می‌کنیم؛ در غیر این صورت iOS
+        # اگر کوکی داریم، از کلاینت android استفاده می‌کنیم (نیاز به PO Token ندارد)
         use_ios = cookie_path is None
+        ua_android = 'com.google.android.youtube/19.08.39 (Linux; U; Android 13) gzip'
+        ua_ios = ('Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) '
+                  'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 '
+                  'Mobile/15E148 Safari/604.1')
         ydl_opts = {
-            'format': 'best[ext=mp4]/best',  # بهترین کیفیت MP4
+            'format': 'bv*+ba/best',  # ویدیو+صدا، اگر نبود بهترین
+            'merge_output_format': 'mp4',
             'outtmpl': output_template,
             'quiet': False,
             'no_warnings': False,
             'extract_flat': False,
             'http_headers': {
-                'User-Agent': ('Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) '
-                               'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 '
-                               'Mobile/15E148 Safari/604.1') if use_ios else (
-                               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                               '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
+                'User-Agent': ua_ios if use_ios else ua_android,
                 'Accept-Language': 'en-US,en;q=0.9'
             },
             'extractor_args': {
-                'youtube': {'player_client': ['ios' if use_ios else 'web']}
-            }
+                'youtube': {'player_client': ['ios'] if use_ios else ['android']}
+            },
+            'concurrent_fragment_downloads': 1
         }
         if cookie_path:
             ydl_opts['cookiefile'] = cookie_path
