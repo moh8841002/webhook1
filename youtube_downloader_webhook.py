@@ -15,6 +15,19 @@ def sanitize_filename(filename):
     """نام فایل را برای ذخیره امن می‌کند"""
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
+@app.route('/', methods=['GET'])
+def home():
+    """صفحه اصلی - نشان دهنده سلامت سرویس"""
+    return jsonify({
+        'service': 'YouTube Shorts Downloader Webhook',
+        'status': 'running',
+        'endpoints': {
+            'POST /download': 'Download YouTube video',
+            'GET /health': 'Health check',
+            'GET /file/<filename>': 'Serve downloaded file'
+        }
+    }), 200
+
 @app.route('/download', methods=['POST'])
 def download_video():
     """
