@@ -8,12 +8,26 @@ import os
 import tempfile
 import re
 from datetime import datetime
+import base64
 
 app = Flask(__name__)
 
 def sanitize_filename(filename):
     """نام فایل را برای ذخیره امن می‌کند"""
-    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+    return re.sub(r'[<>:\"/\\|?*]', '_', filename)
+
+
+def prepare_cookiefile():
+    """اگر متغیر محیطی YT_COOKIES وجود داشته باشد، آن را در فایل temp می‌نویسد و مسیرش را برمی‌گرداند"""
+    cookies_env = os.getenv('YT_COOKIES')
+    if not cookies_env:
+        return None
+    # محتوای کوکی‌ها را در یک فایل موقت ذخیره می‌کنیم
+    temp_dir = tempfile.mkdtemp()
+    cookie_path = os.path.join(temp_dir, 'cookies.txt')
+    with open(cookie_path, 'w', encoding='utf-8') as f:
+        f.write(cookies_env)
+    return cookie_path
 
 @app.route('/', methods=['GET'])
 def home():
@@ -45,13 +59,26 @@ def download_video():
         temp_dir = tempfile.mkdtemp()
         output_template = os.path.join(temp_dir, '%(id)s.%(ext)s')
         
+        # اگر کوکی‌ها ارائه شده‌اند، به yt-dlp بدهیم (برای دور زدن 429/anti-bot)
+        cookie_path = prepare_cookiefile()
+
         ydl_opts = {
             'format': 'best[ext=mp4]/best',  # بهترین کیفیت MP4
             'outtmpl': output_template,
             'quiet': False,
             'no_warnings': False,
             'extract_flat': False,
+            # برخی هدرها و کلاینت iOS برای کاهش احتمال بلاک
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1',
+                'Accept-Language': 'en-US,en;q=0.9'
+            },
+            'extractor_args': {
+                'youtube': {'player_client': ['ios']}
+            }
         }
+        if cookie_path:
+            ydl_opts['cookiefile'] = cookie_path
         
         # دانلود و استخراج اطلاعات
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -96,7 +123,10 @@ def download_video():
             return jsonify(response), 200
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        msg = str(e)
+        if 'Too Many Requests' in msg or 'Sign in to confirm' in msg:
+            return jsonify({'error': 'YouTube blocked the request. Provide cookies via env YT_COOKIES or try later.', 'detail': msg}), 429
+        return jsonify({'error': msg}), 500
 
 @app.route('/file/<filename>', methods=['GET'])
 def serve_file(filename):
